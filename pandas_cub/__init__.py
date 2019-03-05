@@ -40,12 +40,20 @@ class DataFrame:
             if value.ndim != 1:
                 raise ValueError("Number of dimentions of data should be equal to 1")
 
-
     def _check_array_lengths(self, data):
-        pass
+        for i, value in enumerate(data.values()):
+            if i == 0:
+                length = len(value)
+            elif length != len(value):
+                raise ValueError("All arrays must be same length")
 
     def _convert_unicode_to_object(self, data):
         new_data = {}
+        for key, value in data.items():
+            if value.dtype.kind == "U":
+                new_data[key] = value.astype("object")
+            else:
+                new_data[key] = value
         return new_data
 
     def __len__(self):
@@ -56,7 +64,8 @@ class DataFrame:
         -------
         int: the number of rows in the dataframe
         """
-        pass
+        for value in self._data.values():
+            return len(value)
 
     @property
     def columns(self):
@@ -69,7 +78,7 @@ class DataFrame:
         -------
         list of column names
         """
-        pass
+        return list(self._data)
 
     @columns.setter
     def columns(self, columns):
@@ -85,7 +94,17 @@ class DataFrame:
         -------
         None
         """
-        pass
+        if not isinstance(columns, list):
+            raise TypeError("columns must be a list")
+        if len(columns) != len(self._data):
+            raise ValueError("New columns must be same length as current DataFrame")
+        for column in columns:
+            if not isinstance(column, str):
+                raise TypeError("All column names must be strings")
+        if len(columns) != len(set(columns)):
+            raise ValueError("Your columns have duplicates. This is not allowed")
+
+        self._data = dict(zip(columns, self._data.values()))
 
     @property
     def shape(self):
