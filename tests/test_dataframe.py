@@ -28,19 +28,19 @@ class TestDataFrameCreation:
             pdc.DataFrame({'a': np.array([1]), 'b': 10})
 
         with pytest.raises(ValueError):
-            pdc.DataFrame({'a': np.array([1]), 
+            pdc.DataFrame({'a': np.array([1]),
                            'b': np.array([[1]])})
 
         # correct construction. no error
-        pdc.DataFrame({'a': np.array([1]), 
+        pdc.DataFrame({'a': np.array([1]),
                        'b': np.array([1])})
 
     def test_array_length(self):
         with pytest.raises(ValueError):
-            pdc.DataFrame({'a': np.array([1, 2]), 
+            pdc.DataFrame({'a': np.array([1, 2]),
                            'b': np.array([1])})
-        # correct construction. no error                           
-        pdc.DataFrame({'a': np.array([1, 2]), 
+        # correct construction. no error
+        pdc.DataFrame({'a': np.array([1, 2]),
                         'b': np.array([5, 10])})
 
     def test_unicode_to_object(self):
@@ -110,8 +110,8 @@ class TestSelection:
         bool_arr = np.array([True, False, False])
         df_bool = pdc.DataFrame({'col': bool_arr})
         df_result = df[df_bool]
-        df_answer = pdc.DataFrame({'a': a[bool_arr], 'b': b[bool_arr], 
-                                   'c': c[bool_arr], 'd': d[bool_arr], 
+        df_answer = pdc.DataFrame({'a': a[bool_arr], 'b': b[bool_arr],
+                                   'c': c[bool_arr], 'd': d[bool_arr],
                                    'e': e[bool_arr]})
         assert_df_equals(df_result, df_answer)
 
@@ -221,7 +221,7 @@ class TestSelection:
 
         with pytest.raises(NotImplementedError):
             df[['a', 'b']] = 5
-        
+
         with pytest.raises(ValueError):
             df['a'] = np.random.rand(5, 5)
 
