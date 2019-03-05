@@ -30,7 +30,16 @@ class DataFrame:
         self._add_docs()
 
     def _check_input_types(self, data):
-        pass
+        if not isinstance(data, dict):
+            raise TypeError("Data must be a dictionary")
+        for key, value in data.items():
+            if not isinstance(key, str):
+                raise TypeError("Keys must be strings")
+            if not isinstance(value, np.ndarray):
+                raise TypeError("Values of data must be numpy array")
+            if value.ndim != 1:
+                raise ValueError("Number of dimentions of data should be equal to 1")
+
 
     def _check_array_lengths(self, data):
         pass
@@ -190,7 +199,7 @@ class DataFrame:
         Parameters
         ----------
         n: int
-        
+
         Returns
         -------
         DataFrame
@@ -240,7 +249,7 @@ class DataFrame:
         Parameters
         ----------
         aggfunc: str of the aggregation function name in NumPy
-        
+
         Returns
         -------
         A DataFrame
@@ -310,7 +319,7 @@ class DataFrame:
         ----------
         columns: dict
             A dictionary mapping the old column name to the new column name
-        
+
         Returns
         -------
         A DataFrame
@@ -412,7 +421,7 @@ class DataFrame:
     def _non_agg(self, funcname, **kwargs):
         """
         Generic non-aggregation function
-    
+
         Parameters
         ----------
         funcname: str of NumPy name
@@ -591,7 +600,7 @@ class DataFrame:
         agg_doc = \
         """
         Find the {} of each column
-        
+
         Returns
         -------
         DataFrame
