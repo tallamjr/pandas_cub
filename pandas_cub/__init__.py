@@ -430,7 +430,13 @@ class DataFrame:
         -------
         A DataFrame of booleans the same size as the calling DataFrame
         """
-        pass
+        new_data = {}
+        for column, value in self._data.items():
+            if value.dtype.kind == "O":
+                new_data[column] = value == None
+            else:
+                new_data[column] = np.isnan(value)
+        return DataFrame(new_data)
 
     def count(self):
         """
@@ -440,7 +446,13 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        new_data = {}
+        df = self.isna()
+        length = len(self)
+        for col, values in df._data.items():
+            val = length - values.sum()
+            new_data[col] = np.array([val])
+        return DataFrame(new_data)
 
     def unique(self):
         """
@@ -450,7 +462,13 @@ class DataFrame:
         -------
         A list of one-column DataFrames
         """
-        pass
+        dfs = []
+        for col, values in self._data.items():
+            uniques = np.unique(values)
+            dfs.append(DataFrame({col: uniques}))
+        if len(dfs) == 1:
+            return dfs[0]
+        return dfs
 
     def nunique(self):
         """
@@ -460,7 +478,10 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        new_data = {}
+        for col, value in self._data.items():
+            new_data[col] = np.array([len(np.unique(value))])
+        return DataFrame(new_data)
 
     def value_counts(self, normalize=False):
         """
@@ -475,7 +496,21 @@ class DataFrame:
         -------
         A list of DataFrames or a single DataFrame if one column
         """
-        pass
+        dfs = []
+        for col, values in self._data.items():
+            keys, raw_counts = np.unique(values, return_counts=True)
+
+            order = np.argsort(-raw_counts)
+            keys = keys[order]
+            raw_counts = raw_counts[order]
+
+            if normalize:
+                raw_counts = raw_counts / raw_counts.sum()
+            df = DataFrame({col: keys, 'count': raw_counts})
+            dfs.append(df)
+        if len(dfs) == 1:
+            return dfs[0]
+        return dfs
 
     def rename(self, columns):
         """
@@ -490,7 +525,13 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if not isinstance(columns, dict):
+            raise TypeError('`columns` must be a dictionary')
+
+        new_data = {}
+        for col, values in self._data.items():
+            new_data[columns.get(col, col)] = values
+        return DataFrame(new_data)
 
     def drop(self, columns):
         """
@@ -504,7 +545,15 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if isinstance(columns, str):
+            columns = [columns]
+        elif not isinstance(columns, list):
+            raise TypeError('`columns` must be either a string or a list')
+        new_data = {}
+        for col, values in self._data.items():
+            if col not in columns:
+                new_data[col] = values
+        return DataFrame(new_data)
 
     #### Non-Aggregation Methods ####
 
@@ -597,7 +646,14 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        new_data = {}
+        for col, values in self._data.items():
+            if values.dtype.kind in 'bif':
+                values = funcname(values, **kwargs)
+            else:
+                values = values.copy()
+            new_data[col] = values
+        return DataFrame(new_data)
 
     def diff(self, n=1):
         """
@@ -612,8 +668,15 @@ class DataFrame:
         -------
         A DataFrame
         """
-        def func():
-            pass
+        def func(values):
+            values_shifted = np.roll(values, n)
+            values = values - values_shifted
+            values = values.astype('float')
+            if n >= 0:
+                values[:n] = np.NAN
+            else:
+                values[n:] = np.NAN
+            return values
         return self._non_agg(func)
 
     def pct_change(self, n=1):
@@ -629,8 +692,15 @@ class DataFrame:
         -------
         A DataFrame
         """
-        def func():
-            pass
+        def func(values):
+            values = values.astype('float')
+            values_shifted = np.roll(values, n)
+            values = values - values_shifted
+            if n >= 0:
+                values[:n] = np.NAN
+            else:
+                values[n:] = np.NAN
+            return values / values_shifted
         return self._non_agg(func)
 
     #### Arithmetic and Comparison Operators ####
@@ -702,7 +772,15 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if isinstance(other, DataFrame):
+            if other.shape[1] != 1:
+                raise ValueError('`other` must be a one-column DataFrame')
+            other = next(iter(other._data.values()))
+        new_data = {}
+        for col, values in self._data.items():
+            func = getattr(values, op)
+            new_data[col] = func(other)
+        return DataFrame(new_data)
 
     def sort_values(self, by, asc=True):
         """
@@ -717,7 +795,17 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if isinstance(by, str):
+            order = np.argsort(self._data[by])
+        elif isinstance(by, list):
+            cols = [self._data[col] for col in by[::-1]]
+            order = np.lexsort(cols)
+        else:
+            raise TypeError('`by` must be a str or a list')
+
+        if not asc:
+            order = order[::-1]
+        return self[order.tolist(), :]
 
     def sample(self, n=None, frac=None, replace=False, seed=None):
         """
@@ -738,7 +826,17 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if seed:
+            np.random.seed(seed)
+        if frac is not None:
+            if frac <= 0:
+                raise ValueError('`frac` must be positive')
+            n = int(frac * len(self))
+        if n is not None:
+            if not isinstance(n, int):
+                raise TypeError('`n` must be an int')
+            rows = np.random.choice(np.arange(len(self)), size=n, replace=replace).tolist()
+        return self[rows, :]
 
     def pivot_table(self, rows=None, columns=None, values=None, aggfunc=None):
         """
@@ -758,7 +856,80 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        if rows is None and columns is None:
+            raise ValueError('`rows` or `columns` cannot both be `None`')
+
+        if values is not None:
+            val_data = self._data[values]
+            if aggfunc is None:
+                raise ValueError('You must provide `aggfunc` when `values` is provided.')
+        else:
+            if aggfunc is None:
+                aggfunc = 'size'
+                val_data = np.empty(len(self))
+            else:
+                raise ValueError('You cannot provide `aggfunc` when `values` is None')
+
+        if rows is not None:
+            row_data = self._data[rows]
+
+        if columns is not None:
+            col_data = self._data[columns]
+
+        if rows is None:
+            pivot_type = 'columns'
+        elif columns is None:
+            pivot_type = 'rows'
+        else:
+            pivot_type = 'all'
+
+        from collections import defaultdict
+        d = defaultdict(list)
+        if pivot_type == 'columns':
+            for group, val in zip(col_data, val_data):
+                d[group].append(val)
+        elif pivot_type == 'rows':
+            for group, val in zip(row_data, val_data):
+                d[group].append(val)
+        else:
+            for group1, group2, val in zip(row_data, col_data, val_data):
+                d[(group1, group2)].append(val)
+
+        agg_dict = {}
+        for group, vals in d.items():
+            arr = np.array(vals)
+            func = getattr(np, aggfunc)
+            agg_dict[group] = func(arr)
+
+        new_data = {}
+        if pivot_type == 'columns':
+            for col_name in sorted(agg_dict):
+                value = agg_dict[col_name]
+                new_data[col_name] = np.array([value])
+        elif pivot_type == 'rows':
+            row_array = np.array(list(agg_dict.keys()))
+            val_array = np.array(list(agg_dict.values()))
+
+            order = np.argsort(row_array)
+            new_data[rows] = row_array[order]
+            new_data[aggfunc] = val_array[order]
+        else:
+            row_set = set()
+            col_set = set()
+            for group in agg_dict:
+                row_set.add(group[0])
+                col_set.add(group[1])
+            row_list = sorted(row_set)
+            col_list = sorted(col_set)
+            new_data = {}
+            new_data[rows] = np.array(row_list)
+            for col in col_list:
+                new_vals = []
+                for row in row_list:
+                    new_val = agg_dict.get((row, col), np.nan)
+                    new_vals.append(new_val)
+                new_data[col] = np.array(new_vals)
+        return DataFrame(new_data)
 
     def _add_docs(self):
         agg_names = ['min', 'max', 'mean', 'median', 'sum', 'var',
@@ -866,7 +1037,18 @@ class StringMethods:
         return self._str_method(str.encode, col, encoding, errors)
 
     def _str_method(self, method, col, *args):
-        pass
+        old_values = self._df._data[col]
+        if old_values.dtype.kind != 'O':
+            raise TypeError('The `str` accessor only works with string columns')
+        new_values = []
+        for val in old_values:
+            if val is None:
+                new_values.append(val)
+            else:
+                new_val = method(val, *args)
+                new_values.append(new_val)
+        arr = np.array(new_values)
+        return DataFrame({col: arr})
 
 
 def read_csv(fn):
@@ -881,4 +1063,22 @@ def read_csv(fn):
     -------
     A DataFrame
     """
-    pass
+    from collections import defaultdict
+    values = defaultdict(list)
+    with open(fn) as f:
+        header = f.readline()
+        column_names = header.strip('\n').split(',')
+        for line in f:
+            vals = line.strip('\n').split(',')
+            for val, name in zip(vals, column_names):
+                values[name].append(val)
+    new_data = {}
+    for col, vals in values.items():
+        try:
+            new_data[col] = np.array(vals, dtype='int')
+        except ValueError:
+            try:
+                new_data[col] = np.array(vals, dtype='float')
+            except ValueError:
+                new_data[col] = np.array(vals, dtype='O')
+    return DataFrame(new_data)
