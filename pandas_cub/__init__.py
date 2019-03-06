@@ -287,17 +287,17 @@ class DataFrame:
                     new_col_selction.append(self.columns[col])
                 else:
                     new_col_selction.append(col)
-            col_selection = new_col_selction
-        elif isinstance(col_selection, slice):
-            start = col_selection.start
-            stop = col_selection.stop
-            step = col_selection.step
+            column_selection = new_col_selction
+        elif isinstance(column_selection, slice):
+            start = column_selection.start
+            stop = column_selection.stop
+            step = column_selection.step
             if isinstance(start, str):
-                start = self.columns.index(col_selection.start)
+                start = self.columns.index(column_selection.start)
             if isinstance(stop, str):
-                stop = self.columns.index(col_selection.stop) + 1
+                stop = self.columns.index(column_selection.stop) + 1
 
-            col_selection = self.columns[start:stop:step]
+            column_selection = self.columns[start:stop:step]
         else:
             raise TypeError('Column selection must be either an int, string, list, or slice')
 
@@ -338,8 +338,6 @@ class DataFrame:
 
         self._data[key] = value
 
-
-
     def head(self, n=5):
         """
         Return the first n rows
@@ -352,7 +350,7 @@ class DataFrame:
         -------
         DataFrame
         """
-        pass
+        return self[:n, :]
 
     def tail(self, n=5):
         """
@@ -366,7 +364,7 @@ class DataFrame:
         -------
         DataFrame
         """
-        pass
+        return self[-n:, :]
 
     #### Aggregation Methods ####
 
@@ -416,7 +414,13 @@ class DataFrame:
         -------
         A DataFrame
         """
-        pass
+        new_data = {}
+        for column, value in self._data.items():
+            try:
+                new_data[column] = np.array([aggfunc(value)])
+            except TypeError:
+                pass
+        return DataFrame(new_data)
 
     def isna(self):
         """
