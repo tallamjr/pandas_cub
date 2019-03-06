@@ -41,7 +41,7 @@ class DataFrame:
             else:
                 if values.ndim != 1:
                     raise ValueError('Each value must be a 1-D NumPy array')
-    
+
     def _check_array_lengths(self, data):
         for i, values in enumerate(data.values()):
             if i == 0:
@@ -519,7 +519,7 @@ class DataFrame:
         dfs = []
         for col, values in self._data.items():
             keys, raw_counts = np.unique(values, return_counts=True)
-            
+
             order = np.argsort(-raw_counts)
             keys = keys[order]
             raw_counts = raw_counts[order]
@@ -878,7 +878,7 @@ class DataFrame:
         """
         if rows is None and columns is None:
             raise ValueError('`rows` or `columns` cannot both be `None`')
-        
+
         if values is not None:
             val_data = self._data[values]
             if aggfunc is None:
@@ -902,7 +902,7 @@ class DataFrame:
             pivot_type = 'rows'
         else:
             pivot_type = 'all'
-        
+
         from collections import defaultdict
         d = defaultdict(list)
         if pivot_type == 'columns':
