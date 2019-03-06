@@ -113,7 +113,7 @@ class DataFrame:
         -------
         two-item tuple of number of rows and columns
         """
-        pass
+        return len(self), len(self._data)
 
     def _repr_html_(self):
         """
@@ -147,7 +147,61 @@ class DataFrame:
             </tbody>
         </table>
         """
-        pass
+        html = '<table><thead><tr><th></th>'
+        for col in self.columns:
+            html += f"<th>{col:10}</th>"
+
+        html += '</tr></thead>'
+        html += "<tbody>"
+
+        only_head = False
+        num_head = 10
+        num_tail = 10
+        if len(self) <= 20:
+            only_head = True
+            num_head = len(self)
+
+        for i in range(num_head):
+            html += f'<tr><td><strong>{i}</strong></td>'
+            for col, values in self._data.items():
+                kind = values.dtype.kind
+                if kind == 'f':
+                    html += f'<td>{values[i]:10.3f}</td>'
+                elif kind == 'b':
+                    html += f'<td>{values[i]}</td>'
+                elif kind == 'O':
+                    v = values[i]
+                    if v is None:
+                        v = 'None'
+                    html += f'<td>{v:10}</td>'
+                else:
+                    html += f'<td>{values[i]:10}</td>'
+            html += '</tr>'
+
+        if not only_head:
+            html += '<tr><strong><td>...</td></strong>'
+            for i in range(len(self.columns)):
+                html += '<td>...</td>'
+            html += '</tr>'
+            for i in range(-num_tail, 0):
+                html += f'<tr><td><strong>{len(self) + i}</strong></td>'
+                for col, values in self._data.items():
+                    kind = values.dtype.kind
+                    if kind == 'f':
+                        html += f'<td>{values[i]:10.3f}</td>'
+                    elif kind == 'b':
+                        html += f'<td>{values[i]}</td>'
+                    elif kind == 'O':
+                        v = values[i]
+                        if v is None:
+                            v = 'None'
+                        html += f'<td>{v:10}</td>'
+                    else:
+                        html += f'<td>{values[i]:10}</td>'
+                html += '</tr>'
+
+        html += '</tbody></table>'
+        return html
 
     @property
     def values(self):
@@ -156,7 +210,7 @@ class DataFrame:
         -------
         A single 2D NumPy array of the underlying data
         """
-        pass
+        return np.column_stack(list(self._data.values()))
 
     @property
     def dtypes(self):
@@ -167,7 +221,11 @@ class DataFrame:
         their data type in the other
         """
         DTYPE_NAME = {'O': 'string', 'i': 'int', 'f': 'float', 'b': 'bool'}
-        pass
+        column_names = np.array(list(self._data.keys()))
+        dtypes = [DTYPE_NAME[value.dtype.kind] for value in self._data.values()]
+        dtypes = np.array(dtypes)
+        new_data = {"Column Name": column_names, "Data Type": dtypes}
+        return DataFrame(new_data)
 
     def __getitem__(self, item):
         """
@@ -183,19 +241,104 @@ class DataFrame:
         -------
         A subset of the original DataFrame
         """
-        pass
+        if isinstance(item, str):
+            return DataFrame({item: self._data[item]})
+
+        if isinstance(item, list):
+            return DataFrame({column: self._data[column] for column in item})
+
+        if isinstance(item, DataFrame):
+            if item.shape[1] != 1:
+                raise ValueError("Item must be a one-column DataFrame")
+            arr = next(iter(item._data.values()))
+            if arr.dtype.kind != "b":
+                raise ValueError("Item must be a one-column boolean DataFrame")
+            new_data = {column: value[arr] for column, value in self._data.items()}
+            return DataFrame(new_data)
+        if isinstance(item, tuple):
+            return self._getitem_tuple(item)
+        raise TypeError("You must pass either string, list, DataFrame or tuple to the selection operator")
 
     def _getitem_tuple(self, item):
         # simultaneous selection of rows and cols -> df[rs, cs]
-        pass
+        if len(item) != 2:
+            raise ValueError("Item must be of length 2")
+        row_selection, column_selection = item
+
+        if isinstance(row_selection, int):
+            row_selection = [row_selection]
+        elif isinstance(row_selection, DataFrame):
+            if row_selection.shape[1] != 1:
+                raise ValueError('Can only pass a one column DataFrame for selection')
+            row_selection = next(iter(row_selection._data.values()))
+            if row_selection.dtype.kind != 'b':
+                raise TypeError('DataFrame must be a boolean')
+        elif not isinstance(row_selection, (list, slice)):
+            raise TypeError('Row selection must be either an int, slice, list, or DataFrame')
+
+        if isinstance(column_selection, int):
+            column_selection = [self.columns[column_selection]]
+        elif isinstance(column_selection, str):
+            column_selection = [column_selection]
+        elif isinstance(column_selection, list):
+            new_col_selction = []
+            for col in column_selection:
+                if isinstance(col, int):
+                    new_col_selction.append(self.columns[col])
+                else:
+                    new_col_selction.append(col)
+            col_selection = new_col_selction
+        elif isinstance(col_selection, slice):
+            start = col_selection.start
+            stop = col_selection.stop
+            step = col_selection.step
+            if isinstance(start, str):
+                start = self.columns.index(col_selection.start)
+            if isinstance(stop, str):
+                stop = self.columns.index(col_selection.stop) + 1
+
+            col_selection = self.columns[start:stop:step]
+        else:
+            raise TypeError('Column selection must be either an int, string, list, or slice')
+
+        new_data = {}
+        for column in column_selection:
+            new_data[column] = self._data[column][row_selection]
+
+        return DataFrame(new_data)
 
     def _ipython_key_completions_(self):
         # allows for tab completion when doing df['c
-        pass
+        return self.columns
 
     def __setitem__(self, key, value):
         # adds a new column or a overwrites an old column
-        pass
+        if not isinstance(key, str):
+            raise NotImplementedError('Only able to set a single column')
+
+        if isinstance(value, np.ndarray):
+            if value.ndim != 1:
+                raise ValueError('Setting array must be 1D')
+            if len(value) != len(self):
+                raise ValueError('Setting array must be same length as DataFrame')
+        elif isinstance(value, DataFrame):
+            if value.shape[1] != 1:
+                raise ValueError('Setting DataFrame must be one column')
+            if len(value) != len(self):
+                raise ValueError('Setting and Calling DataFrames must be the same length')
+            value = next(iter(value._data.values()))
+        elif isinstance(value, (int, str, float, bool)):
+            value = np.repeat(value, len(self))
+        else:
+            raise TypeError('Setting value must either be a numpy array, '
+                            'DataFrame, integer, string, float, or boolean')
+
+        if value.dtype.kind == 'U':
+            value = value.astype('O')
+
+        self._data[key] = value
+
+
 
     def head(self, n=5):
         """
